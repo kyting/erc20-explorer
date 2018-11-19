@@ -27,6 +27,8 @@ var exporter = function(config, db) {
     });
     
     if (log.event === "Transfer") {
+      console.log("from is: " + log.args.from);
+      console.log("to is: " + log.args.to);
       self.exportBalance(log.args.from);
       self.exportBalance(log.args.to);
     }
@@ -48,8 +50,10 @@ var exporter = function(config, db) {
     
     logs.forEach(function(log) {
       if (log.event === "Transfer") {
-        accounts[log.args._from] = log.args.from;
-        accounts[log.args._to] = log.args.to;
+        console.log("from is: " + log.args.from);
+        console.log("to is: " + log.args.to);
+        accounts[log.args.from] = log.args.from;
+        accounts[log.args.to] = log.args.to;
       }
       
       if (log.event === "Approval") {
@@ -89,10 +93,9 @@ var exporter = function(config, db) {
         return;
       }
       
-      log.timestamp = block.timestamp;
-      
-      if (log.args && log.args._value) {
-        log.args._value = log.args._value.toNumber();
+      log.timestamp = block.timestamp;      
+      if (log.args && log.args.value) {
+        log.args.value = log.args.value.toString();
       }
       
       self.db.insert(log, function(err, newLogs) {
@@ -111,9 +114,6 @@ var exporter = function(config, db) {
   
   self.exportBalance = function(address, callback) {
     console.log("Exporting balance of", address);
-    console.log("address is: %o",address);
-    console.log("Type of address:");
-    typeof address;
     self.contract.balanceOf(address, function(err, balance) {
       var doc = { _id: address, balance: balance.toNumber() };
       self.db.update({ _id: doc._id }, doc, { upsert: true }, function(err, numReplaced) {
