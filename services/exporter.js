@@ -10,6 +10,7 @@ var exporter = function(config, db) {
   self.web3.setProvider(config.provider);
   
   self.contract = self.web3.eth.contract(config.erc20ABI).at(config.tokenAddress);
+  console.log("contract is: %o", self.contract);
   self.allEvents = self.contract.allEvents({fromBlock: config.exportStartBlock, toBlock: "latest"});
   self.newEvents = self.contract.allEvents();
   
@@ -26,12 +27,13 @@ var exporter = function(config, db) {
     });
     
     if (log.event === "Transfer") {
-      self.exportBalance(log.args._from);
-      self.exportBalance(log.args._to);
+      self.exportBalance(log.args.from);
+      self.exportBalance(log.args.to);
     }
     if (log.event === "Approval") {
       self.exportBalance(log.args._owner);
       self.exportBalance(log.args._spender);
+      process.exit(0);
     }
   });
   
@@ -46,19 +48,21 @@ var exporter = function(config, db) {
     
     logs.forEach(function(log) {
       if (log.event === "Transfer") {
-        accounts[log.args._from] = log.args._from;
-        accounts[log.args._to] = log.args._to;
+        accounts[log.args._from] = log.args.from;
+        accounts[log.args._to] = log.args.to;
       }
       
       if (log.event === "Approval") {
+        console.log("approval event found");
         accounts[log.args._owner] = log.args._owner;
         accounts[log.args._spender] = log.args._spender;
       }
     });
+
+    //process.exit(0);
         
     async.eachSeries(logs, self.processLog, function(err) {
       console.log("All historical logs processed");
-      self.exportBatchAccounts(accounts);
     });
   });
   
@@ -74,8 +78,11 @@ var exporter = function(config, db) {
     log._id = log.blockNumber + "_" + log.transactionIndex + "_" + log.logIndex;
     
     console.log("Exporting log:", log._id);
-    
-    self.web3.eth.getBlock(log.blockNumber, false, function(err, block) {
+    //console.log("Log is: %o", log);
+
+    const blockNumber = Number(log.blockNumber);
+    console.log("blockNumber is: ", blockNumber);
+    self.web3.eth.getBlock(blockNumber, false, function(err, block) {
       if (err) {
         console.log("Error retrieving block information for log:", err);
         callback();
@@ -104,6 +111,9 @@ var exporter = function(config, db) {
   
   self.exportBalance = function(address, callback) {
     console.log("Exporting balance of", address);
+    console.log("address is: %o",address);
+    console.log("Type of address:");
+    typeof address;
     self.contract.balanceOf(address, function(err, balance) {
       var doc = { _id: address, balance: balance.toNumber() };
       self.db.update({ _id: doc._id }, doc, { upsert: true }, function(err, numReplaced) {
